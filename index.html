@@ -1,33 +1,18 @@
 <!doctype html>
 <html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>飲酒管理</title>
-    <meta name="theme-color" content="#0f172a" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React 18 UMD -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Framer Motion UMD -->
-    <script src="https://unpkg.com/framer-motion/dist/framer-motion.umd.js"></script>
-    <!-- Babel（外部JSのJSXをブラウザ変換するため） -->
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-    <style>html,body,#root{height:100%;}</style>
-  </head>
-  <body class="bg-slate-100">
-    <div id="root"></div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>飲酒管理</title>
+  <!-- Tailwind CDN（ビルド不要）-->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./styles.css" />
+  <meta name="theme-color" content="#0f172a">
+</head>
+<body class="bg-slate-100">
+  <div id="root"></div>
 
-    <script>
-      // PWA（まずは登録。キャッシュが邪魔な場合は一時的にコメントアウトしてOK）
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(()=>{});
-      }
-    </script>
-
-    <!-- アプリ本体（分割版）：BabelがJSXを変換して実行 -->
-    <script type="text/babel" data-presets="env,react" src="./app.js"></script>
-  </body>
+  <!-- アプリ本体（ESM） -->
+  <script type="module" src="./app.js"></script>
+</body>
 </html>
