@@ -1,27 +1,12 @@
 {
   "name": "飲酒管理",
   "short_name": "飲酒管理",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "alcohol-demo-mobile.html",
   "display": "standalone",
-  "background_color": "#f8fafc",
+  "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
-    {
-      "src": "./icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    },
-    {
-      "src": "./icons/icon-180.png",
-      "sizes": "180x180",
-      "type": "image/png",
-      "purpose": "any"
-    }
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
