@@ -3,16 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>診断: モジュール読込</title>
+  <title>診断: React最小</title>
 </head>
 <body style="font: 16px/1.6 system-ui; padding: 24px; background:#f6f7fb">
-  <h1>診断ページ</h1>
-  <ol>
-    <li id="status-html">index.html は表示できています</li>
-    <li id="status-js">app.js 読込状況: <strong style="color:#999">未</strong></li>
-  </ol>
-
+  <div id="root">（ここがReactで置き換わればOK）</div>
   <script type="module" src="./app.js"></script>
-  <noscript>JavaScript が無効です</noscript>
 </body>
 </html>
