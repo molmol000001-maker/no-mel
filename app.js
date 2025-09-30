@@ -1,3 +1,6 @@
-document.getElementById('status-js').innerHTML =
-  'app.js 読込状況: <strong style="color:green">OK（実行されました）</strong>';
-alert('app.js が実行されました');
+import React from "https://esm.sh/react@18.3.1";
+import { createRoot } from "https://esm.sh/react-dom@18.3.1/client";
+
+createRoot(document.getElementById('root')).render(
+  React.createElement('div', null, 'React は動いています ✅')
+);
