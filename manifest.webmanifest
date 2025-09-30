@@ -1,7 +1,7 @@
 {
   "name": "飲酒管理",
   "short_name": "飲酒管理",
-  "start_url": "alcohol-demo-mobile.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
