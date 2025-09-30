@@ -2,11 +2,17 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>診断: React最小</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>飲酒管理</title>
+  <!-- Tailwind CDN（ビルド不要）-->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="./styles.css" />
+  <meta name="theme-color" content="#0f172a">
 </head>
-<body style="font: 16px/1.6 system-ui; padding: 24px; background:#f6f7fb">
-  <div id="root">（ここがReactで置き換わればOK）</div>
+<body class="bg-slate-100">
+  <div id="root"></div>
+
+  <!-- アプリ本体（ESM） -->
   <script type="module" src="./app.js"></script>
 </body>
 </html>
