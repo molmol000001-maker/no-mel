@@ -205,4 +205,308 @@ function App() {
   // ユーティリティ（テスト用）
   const hasAnyAlcoholEver = (hist) => hist.some(h => h.type === 'alcohol');
   const needsWaterAfter = (hist) => hist.length > 0 && hist[0].type === "alcohol";
-  const needsW
+  const needsWater = needsWaterAfter(history);
+
+  // actions
+  const addDrink = () => {
+    if (needsWater) { alert("次の一杯の前にソフトドリンクを挟んでください"); return; }
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {}
+    const g = gramsOfAlcohol(baseAbv, ml);
+    const now = Date.now();
+    const aNow = decayedA(now);
+    setAg(aNow + g);
+    setLastTs(now);
+    setLastAlcoholTs(now);         // 最終アルコール時刻を更新
+    setLastDrinkGrams(g);         // 直近の摂取グラムを記録
+    setWaterBonusSec(0);           // ソフトドリンク効果はリセット（次の周回へ）
+    const labelParts = [
+      cfg.name,
+      cat === "cocktail" ? curOption.label || "" : (!cfg.simpleAdd && (((cfg.options?.length || 0) > 1) || cfg.showMlAlways) ? (curOption.label || "") : ""),
+      curOption && curOption.abv != null ? `${curOption.abv}%` : cfg.allowPercent ? `${baseAbv}%` : `平均${cfg.avgAbv}%`,
+    ];
+    setHistory((h) => [
+      { id: Math.random().toString(36).slice(2), ts: now, type: "alcohol", label: labelParts.filter(Boolean).join(" · "), abv: baseAbv, ml },
+      ...h,
+    ]);
+    setTab("main");
+  };
+  const addWater = () => {
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) {}
+    const now = Date.now();
+    // 直前がアルコールなら必須ウォーター（ボーナスなし）
+    const mandatory = history.length > 0 && history[0].type === 'alcohol';
+    setHistory((h) => [{ id: Math.random().toString(36).slice(2), ts: now, type: "water", label: "ソフトドリンク/水" }, ...h]);
+    setLastWaterTs(now);
+    if (!mandatory) {
+      // 追加のソフトドリンクは1杯ごとに -10分（600秒）
+      setWaterBonusSec((s)=> s + 600);
+    }
+  };
+  const handleWaterClick = () => {
+    try { if (navigator.vibrate) navigator.vibrate([10, 30, 10]); } catch (e) {}
+    setRipple(true);
+    setPulseKey((k) => k + 1);
+    setSpin(true);
+    setShowSparks(true);
+    setShowSparks2(true);
+    setBurstKey((k) => k + 1);
+    // 長め&派手めの演出
+    setTimeout(() => setRipple(false), 1100);
+    setTimeout(() => setShowSparks(false), 800);
+    setTimeout(() => setShowSparks2(false), 1000);
+    // 演出を見せてから記録（オーバーレイは記録後に閉じる）
+    setTimeout(() => {
+      addWater();
+      showToast("ソフトドリンクを記録しました");
+      setSpin(false);
+    }, 700);
+  };
+  const endSession = () => {
+    try { if (navigator.vibrate) navigator.vibrate(20); } catch (e) {}
+
+    // 1) 永続データを先に空にする
+    const now = Date.now();
+    try {
+      localStorage.setItem("alc_Ag", "0");
+      localStorage.setItem("alc_lastTs", String(now));
+      localStorage.setItem("alc_lastWater", "0");
+      localStorage.setItem("alc_hist", JSON.stringify([]));
+      localStorage.setItem("alc_lastAlcohol", "0");
+      localStorage.setItem("alc_waterBonusSec", "0");
+      localStorage.setItem("alc_lastDrinkGrams", "0");
+    } catch (e) {}
+
+    // 2) React state を同期して即UIに反映
+    setAg(0);
+    setLastTs(now);
+    setLastWaterTs(0);
+    setHistory([]);
+    setCat("beer");
+    setOptionIdx(0);
+    setPercent("");
+    setLastAlcoholTs(0);
+    setLastDrinkGrams(0);
+    setWaterBonusSec(0);
+    setTab("main");
+
+    // 3) 強制再計算 + 再マウント（key更新）で確実に初期化
+    setSecTick((t) => t + 1);
+    setAppKey((k) => k + 1);
+    showToast("リセットしました");
+  };
+
+  // ---------- tiny dev tests (console) ----------
+  useEffect(() => {
+    try {
+      console.assert(Math.abs(gramsOfAlcohol(5, 350) - 14) < 0.01, "g(5%,350ml) ≈ 14g");
+      console.assert(Math.abs(gramsOfAlcohol(5, 500) - 20) < 0.01, "g(5%,500ml) ≈ 20g");
+      console.assert(gramsOfAlcohol(5, 500) > gramsOfAlcohol(5, 350), 'g increases with ml');
+      console.assert(fmtMMSS(0) === "0:00", "fmtMMSS 0:00");
+      console.assert(fmtMMSS(125) === "2:05", "fmtMMSS 2:05");
+      const stageInfoLocal = (s)=>stageInfo(s);
+      (function(){
+        const a = stageInfoLocal(5).label === 'しらふ';
+        const b = stageInfoLocal(20).label === 'ほろ酔い';
+        const c = stageInfoLocal(60).label === 'パーティ';
+        const d = stageInfoLocal(80).label === '酩酊';
+        const e = stageInfoLocal(95).label === '危険';
+        console.assert(a && b && c && d && e, 'stageInfo thresholds ok');
+      })();
+    } catch (e) {
+      console.warn("dev tests failed", e);
+    }
+  }, []);
+
+  // ---------- UI ----------
+  return (
+    <div className="min-h-[100dvh] w-full text-slate-900 bg-gradient-to-b from-slate-50 to-slate-100">
+      <div key={appKey} className="max-w-md mx-auto relative flex flex-col min-h-[100dvh]">
+        {/* header */}
+        <header className="sticky top-0 z-20 backdrop-blur bg-white/70 border-b border-slate-200" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="font-semibold">飲酒管理</div>
+              <div className="text-right leading-tight w-40">
+                <div className="text-[10px] text-slate-500 flex items-center justify-between gap-1">
+                  <span>酔い度ゲージ</span>
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded ${headerStage.chip}`}>{headerStage.label}</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mt-1">
+                  <div className={`h-full ${headerStage.bar} transition-[width] duration-700`} style={{ width: `${Math.max(0, Math.min(100, headerScoreExact))}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* main content */}
+        <main className="flex-1 px-4 pb-32 pt-3">
+          {/* main section */}
+          <section className="bg-white rounded-2xl p-4 shadow-sm grid gap-4" style={{ display: "grid" }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold tracking-tight">{fmtMMSS(displaySec)}</div>
+                {hasAnyAlcohol && displaySec > 0 && (
+                  <div className="text-[11px] text-slate-500">（{fmtTime(Date.now() + displaySec * 1000)} 目安）</div>
+                )}
+                {effectiveBonusSec > 0 && (
+                  <div className="text-[11px] text-slate-500">ソフトドリンク効果: -{Math.floor(effectiveBonusSec / 60)}分</div>
+                )}
+              </div>
+              <button onClick={addWater} className="h-11 px-4 rounded-xl bg-slate-100 font-semibold active:scale-[.98]">
+                ソフトドリンク
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {ORDER.map((id) => (
+                <button
+                  key={id}
+                  className={`h-11 px-3 rounded-xl text-sm font-semibold border active:scale-[.98] ${cat === id ? 'bg-slate-900 text-white' : 'bg-white'}`}
+                  onClick={() => {
+                    setCat(id);
+                    setOptionIdx(0);
+                    setPercent("");
+                  }}
+                >
+                  {DRINKS[id].name}
+                </button>
+              ))}
+            </div>
+
+            {cat === 'cocktail' ? (
+              <>
+                <div>
+                  <div className="text-xs text-slate-500">強さ</div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {DRINKS.cocktail.options.map((op, idx) => (
+                      <button
+                        key={op.label}
+                        className={`h-11 px-3 rounded-xl text-sm font-semibold border active:scale-[.98] ${optionIdx === idx ? 'bg-slate-900 text-white' : 'bg-white'}`}
+                        onClick={() => setOptionIdx(idx)}
+                      >
+                        {op.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border rounded-xl p-3 text-xs text-slate-600">
+                  {optionIdx === 0 && <p>弱め（10度前後）：カシスオレンジやファジーネーブルなど、ジュースベースの飲みやすいカクテル。</p>}
+                  {optionIdx === 1 && <p>レギュラー（20度前後）：ウォッカ、ジン、テキーラ、ラムなどのスピリッツをベースに他の材料を加えて作られます。</p>}
+                  {optionIdx === 2 && <p>強め（30度前後以上）：マティーニ、マンハッタン、モヒートなど、スピリッツ比率が高め。</p>}
+                </div>
+
+                <div className="mt-2">
+                  <button
+                    disabled={needsWater}
+                    aria-disabled={needsWater}
+                    className={`w-full h-12 px-4 rounded-xl font-semibold active:scale-[.98] ${needsWater ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white'}`}
+                    onClick={addDrink}
+                  >
+                    この内容で追加
+                  </button>
+                </div>
+                {needsWater && <div className="text-[11px] text-rose-600">一杯お酒を飲んだら、一杯ソフトドリンクを挟んでください。</div>}
+              </>
+            ) : (
+              <>
+                {(!DRINKS[cat].simpleAdd && ((DRINKS[cat].options?.length || 0) > 1)) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-slate-500">量</div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {DRINKS[cat].options.map((op, idx) => (
+                          <button
+                            key={op.label}
+                            className={`h-11 px-3 rounded-xl text-sm font-semibold border active:scale-[.98] ${optionIdx === idx ? 'bg-slate-900 text-white' : 'bg-white'}`}
+                            onClick={() => setOptionIdx(idx)}
+                          >
+                            {op.label || '既定量'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {DRINKS[cat].allowPercent && (
+                      <div>
+                        <div className="text-xs text-slate-500">度数（%）</div>
+                        <input
+                          className="w-full mt-1 border rounded-xl px-3 h-11"
+                          type="number"
+                          min={DRINKS[cat].percentRange.min}
+                          max={DRINKS[cat].percentRange.max}
+                          step={DRINKS[cat].percentRange.step}
+                          value={percent === '' ? DRINKS[cat].avgAbv : percent}
+                          onChange={(e) => setPercent(e.target.value === '' ? '' : Number(e.target.value))}
+                        />
+                        <div className="text-[11px] text-slate-500 mt-1">未入力時は平均{DRINKS[cat].avgAbv}%で推定</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(!DRINKS[cat].simpleAdd && ((DRINKS[cat].options?.length || 0) <= 1) && DRINKS[cat].allowPercent) && (
+                  <div>
+                    <div className="text-xs text-slate-500">度数（%）</div>
+                    <input
+                      className="w-full mt-1 border rounded-xl px-3 h-11"
+                      type="number"
+                      min={DRINKS[cat].percentRange.min}
+                      max={DRINKS[cat].percentRange.max}
+                      step={DRINKS[cat].percentRange.step}
+                      value={percent === '' ? DRINKS[cat].avgAbv : percent}
+                      onChange={(e) => setPercent(e.target.value === '' ? '' : Number(e.target.value))}
+                    />
+                    <div className="text-[11px] text-slate-500 mt-1">未入力時は平均{DRINKS[cat].avgAbv}%で推定</div>
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  <button
+                    disabled={needsWater}
+                    aria-disabled={needsWater}
+                    className={`w-full h-12 px-4 rounded-xl font-semibold active:scale-[.98] ${needsWater ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white'}`}
+                    onClick={addDrink}
+                  >
+                    この内容で追加
+                  </button>
+                </div>
+                {needsWater && <div className="text-[11px] text-rose-600">一杯お酒を飲んだら、一杯ソフトドリンクを挟んでください。</div>}
+              </>
+            )}
+          </section>
+
+          {/* history */}
+          <section className="bg-white rounded-2xl p-4 shadow-sm" style={{ display: "none" }}>
+            {/* タブ実装を簡素化（単画面運用）。もし切り替えたい場合は、上のtab状態とこの表示を戻してください */}
+          </section>
+
+          {/* settings */}
+          <section className="bg-white rounded-2xl p-4 shadow-sm grid gap-4" style={{ display: "none" }}>
+            {/* 同上 */}
+          </section>
+        </main>
+
+        {/* toast */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key="toast"
+              className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs shadow"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.2 }}
+            >
+              {toast}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      </div>
+    </div>
+  );
+}
+
+// マウント
+createRoot(document.getElementById("root")).render(<App />);
