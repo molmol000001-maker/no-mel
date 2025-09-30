@@ -1,7 +1,18 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>診断: 純テキスト</title>
-<body style="font-family: system-ui; padding: 24px; background:#f6f7fb">
-  <h1>GitHub Pages は動いています</h1>
-  <p>このテキストが見えれば、Pages 配信は正常です。次に Step 2 へ。</p>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>診断: モジュール読込</title>
+</head>
+<body style="font: 16px/1.6 system-ui; padding: 24px; background:#f6f7fb">
+  <h1>診断ページ</h1>
+  <ol>
+    <li id="status-html">index.html は表示できています</li>
+    <li id="status-js">app.js 読込状況: <strong style="color:#999">未</strong></li>
+  </ol>
+
+  <script type="module" src="./app.js"></script>
+  <noscript>JavaScript が無効です</noscript>
 </body>
+</html>
