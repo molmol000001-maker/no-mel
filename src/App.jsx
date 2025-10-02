@@ -30,7 +30,9 @@ const [goodNightOpen, setGoodNightOpen] = useState(false);
   // タイマー関連
   const [lastAlcoholTs, setLastAlcoholTs] = useState(0);
   const [lastDrinkGrams, setLastDrinkGrams] = useState(0);
-  const [secTick, setSecTick] = useState(0); // 1秒ごとに再レンダリング
+   // 1秒ごとに「同一の現在時刻」を全計算で共有
+  const [nowSec, setNowSec] = useState(Date.now());
+
   // === カクテル強さプリセット & 表示用テキスト ===
 const COCKTAIL_STRENGTHS = [
   { key: "weak",   label: "弱め", abv: 6,  note: "目安6%／例: スプリッツァー、カシスソーダ" },
@@ -104,11 +106,11 @@ const [picker, setPicker] = useState({
   };
 
 // 現在の残存量：表示は毎秒更新（secTick 依存）
-  const A_now = useMemo(() => decayedA(Date.now()), [secTick, lastTs, A_g, burnRate]);
+  const A_now = useMemo(() => decayedA(nowSec), [nowSec, lastTs, A_g, burnRate]);
 
   // ---- 直近60分の摂取量（g）と友好的上限 ----
   const gramsRecent60 = (() => {
-    const cutoff = Date.now() - 60 * 60 * 1000;
+   const cutoff = nowSec - 60 * 60 * 1000;
     let sum = 0;
     for (const h of history) {
       if (h.type === "alcohol" && h.ts >= cutoff) {
@@ -137,9 +139,9 @@ const [picker, setPicker] = useState({
 
   // 秒ごとに再描画（タイマー表示用）
   useEffect(() => {
-    const id = setInterval(() => setSecTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
+     const id = setInterval(() => setNowSec(Date.now()), 1000);
+     return () => clearInterval(id);
+   }, []);
 
   // 飲酒処理（履歴に abv/ml を持たせる）
   const addDrink = (label, ml, abv) => {
@@ -241,15 +243,15 @@ const confirmPicker = () => {
     ? Math.max(
         0,
         Math.round((lastDrinkGrams / 20) * 1800) -
-          Math.floor((Date.now() - lastAlcoholTs) / 1000)
+          Math.floor((nowSec - lastAlcoholTs) / 1000)
       )
     : 0;
 
   const baseSec = lastAlcoholTs
     ? Math.round((Math.max(0, lastDrinkGrams) / 20) * 1800)
     : 0;
-  const elapsed = lastAlcoholTs
-    ? Math.floor((Date.now() - lastAlcoholTs) / 1000)
+    const elapsed = lastAlcoholTs
+    ? Math.floor((nowSec - lastAlcoholTs) / 1000)
     : 0;
 
   // ベース残り（直近一杯由来の残り待ち）
@@ -259,10 +261,12 @@ const confirmPicker = () => {
   // 目標スコアまでの自然減衰時間（残り秒）
   const targetBaseSec = secondsToTarget(A_now, A_target, burnRate);
 
-  // ポリシー: 「minCooldown」以上、「目標まで」「友好的上限」の小さい方以下
-  const policyBaseSec = Math.max(
-    minCooldownSec,
-    Math.min(targetBaseSec, friendlyCapSec)
+  // 友好的上限は“残り上限”として経過に応じて減少させる
+  const friendlyRemainingSec = Math.max(0, friendlyCapSec - elapsed);
+ // clamp(natural, lower=minCooldown, upper=friendlyRemaining)
+  const policyBaseSec = Math.min(
+    Math.max(targetBaseSec, minCooldownSec),
+    friendlyRemainingSec > 0 ? friendlyRemainingSec : Infinity
   );
 
    // —— ボーナス予算を、消化に応じて減らして適用 ——
@@ -275,7 +279,10 @@ const confirmPicker = () => {
  // 今フレームで使えるボーナス（ベースの残りと予算の小さい方）
  const bonusUsable = Math.min(bonusRemainingSec, remainingBaseSec);
  // 無条件ボーナス適用（ただし加算は任意ウォーター時のみ）
- const nextOkSec = Math.max(0, policyBaseSec - (waterBonusSec || 0));
+ const nextOkSec = Math.max(
+   0,
+   Math.floor(policyBaseSec - (waterBonusSec || 0))
+ );
 
   // ---------- ステージ判定 ----------
   const stageInfo = (s) => {
@@ -346,7 +353,7 @@ const confirmPicker = () => {
               <div className="text-2xl font-bold tracking-tight">{fmtMMSS(nextOkSec)}</div>
               {nextOkSec > 0 && (
                 <div className="text-[11px] text-slate-500">
-                  （{new Date(Date.now() + nextOkSec * 1000).toTimeString().slice(0, 5)} 目安）
+                  （{new Date(nowSec + nextOkSec * 1000).toTimeString().slice(0, 5)} 目安）
                 </div>
               )}
               {waterBonusSec > 0 && (
