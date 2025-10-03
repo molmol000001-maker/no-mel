@@ -450,6 +450,13 @@ const confirmPicker = () => {
               ワイン
             </button>
 
+            <button
+            onClick={() => addDrink("テキーラ 30ml (40%)", 30, 40)}
+            className="h-12 px-4 rounded-xl font-semibold bg-lime-700 text-white"
+            >
+            テキーラ
+            </button>
+
             {/* その他：自由入力ピッカー */}
             <button
               onClick={() => openDrinkPicker("other")}
