@@ -54,6 +54,9 @@ const [goodNightOpen, setGoodNightOpen] = useState(false);
    // 1秒ごとに「同一の現在時刻」を全計算で共有
   const [nowSec, setNowSec] = useState(Date.now());
 
+  // ← 他の useState の並びの末尾あたり
+const [booted, setBooted] = useState(false); // 復元完了フラグ
+
   // === カクテル強さプリセット & 表示用テキスト ===
 const COCKTAIL_STRENGTHS = [
   { key: "weak",   label: "弱め", abv: 6,  note: "目安6%／例: スプリッツァー、カシスソーダ" },
@@ -90,55 +93,73 @@ const [picker, setPicker] = useState({
   note: "",      // 補足表示（カクテルの説明）
 });
 
-// App内、useStateの定義が並んだ後に追加（最初のuseEffectの前）
+// === ドリンクピッカー state ===
+const [picker, setPicker] = useState({ /* ...省略... */ });
+
+// ⬇⬇⬇ ここに “復元 useEffect” を置く（既存の復元処理があれば置き換え）
 useEffect(() => {
   const saved = loadState();
-  if (!saved) return;
+  if (!saved) {
+    // 保存無しでも、入力欄は現在値と同期しておく
+    setWeightInput(String(weightKg));
+    setAgeInput(String(age));
+    setBooted(true);
+    return;
+  }
 
-  // 1) プロフィールを先に反映
+  // プロフィール復元
   if (saved.weightKg) setWeightKg(saved.weightKg);
   if (saved.age) setAge(saved.age);
   if (saved.sex) setSex(saved.sex);
 
-  // 2) 保存時のプロフィールで burnRate を即席計算
+  // 保存時プロフで burnRate 仮算 → A_g を自然減衰で合わせる
   const calcBurn = (sx, ag) => {
     let v = sx === "male" ? 7.2 : sx === "female" ? 6.8 : 7.0;
-    if (ag < 30) v += 0.2;
-    else if (ag >= 60) v -= 0.2;
+    if (ag < 30) v += 0.2; else if (ag >= 60) v -= 0.2;
     return Math.max(3, Math.min(12, Number(v.toFixed(1))));
   };
-  const br = calcBurn(saved.sex ?? "male", saved.age ?? 35);
-
-  // 3) A_g を lastTs から自然減衰して今に合わせる
   const now = Date.now();
   const last = Number(saved.lastTs ?? now);
   const dt_h = Math.max(0, (now - last) / 3600000);
+  const br = calcBurn(saved.sex ?? "male", saved.age ?? 35);
   const Ag = Math.max(0, Number(saved.A_g ?? 0) - br * dt_h);
 
-  // 4) 各種stateを復元（タイムスタンプは今に更新）
+  // 本体と入力欄を復元
   setAg(Ag);
   setLastTs(now);
   setHistory(Array.isArray(saved.history) ? saved.history : []);
   setWaterBonusSec(Number(saved.waterBonusSec ?? 0));
   setLastAlcoholTs(Number(saved.lastAlcoholTs ?? 0));
   setLastDrinkGrams(Number(saved.lastDrinkGrams ?? 0));
+  setWeightInput(String(saved.weightKg ?? weightKg));
+  setAgeInput(String(saved.age ?? age));
+
+  setBooted(true); // ← 復元完了
 }, []);
 
+
+// 保存 useEffect（復元完了後だけ保存／保存頻度を軽くディレイ）
 useEffect(() => {
-  const toSave = {
-    version: 1,
-    A_g,
-    lastTs,
-    history,
-    waterBonusSec,
-    lastAlcoholTs,
-    lastDrinkGrams,
-    weightKg,
-    age,
-    sex,
-  };
-  saveState(toSave);
+  if (!booted) return; // 復元完了までは保存しない：初期空状態で上書き防止
+
+  const id = setTimeout(() => {
+    saveState({
+      version: 1,
+      A_g,
+      lastTs,
+      history,
+      waterBonusSec,
+      lastAlcoholTs,
+      lastDrinkGrams,
+      weightKg,
+      age,
+      sex,
+    });
+  }, 200);
+
+  return () => clearTimeout(id);
 }, [
+  booted,
   A_g,
   lastTs,
   history,
@@ -149,6 +170,7 @@ useEffect(() => {
   age,
   sex,
 ]);
+
 
 
 
