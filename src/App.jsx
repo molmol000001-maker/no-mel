@@ -1,6 +1,25 @@
 import { motion, AnimatePresence } from "framer-motion";
 import React, { useState, useEffect, useMemo } from "react";
 
+// ← import群の下あたりに追加
+const STORAGE_KEY = "nomel_v1";
+
+const saveState = (obj) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+  } catch (_) {}
+};
+
+const loadState = () => {
+  try {
+    const s = localStorage.getItem(STORAGE_KEY);
+    return s ? JSON.parse(s) : null;
+  } catch (_) {
+    return null;
+  }
+};
+
+
 export default function App() {
   // --- helpers ---
   const gramsOfAlcohol = (abvPct, ml) => ml * (abvPct / 100) * 0.8; // 0.8g/ml
@@ -15,6 +34,8 @@ export default function App() {
   const [tab, setTab] = useState("main");
   const [weightKg, setWeightKg] = useState(75);
   const [age, setAge] = useState(35);
+  const [weightInput, setWeightInput] = useState(String(75));
+  const [ageInput, setAgeInput] = useState(String(35));
   const [sex, setSex] = useState("male");
   const [A_g, setAg] = useState(0); // 体内アルコール量(g)
   const [lastTs, setLastTs] = useState(Date.now());
@@ -68,6 +89,67 @@ const [picker, setPicker] = useState({
   sizeKey: null, // 日本酒の「お猪口/一合」、カクテル強さキーなど
   note: "",      // 補足表示（カクテルの説明）
 });
+
+// App内、useStateの定義が並んだ後に追加（最初のuseEffectの前）
+useEffect(() => {
+  const saved = loadState();
+  if (!saved) return;
+
+  // 1) プロフィールを先に反映
+  if (saved.weightKg) setWeightKg(saved.weightKg);
+  if (saved.age) setAge(saved.age);
+  if (saved.sex) setSex(saved.sex);
+
+  // 2) 保存時のプロフィールで burnRate を即席計算
+  const calcBurn = (sx, ag) => {
+    let v = sx === "male" ? 7.2 : sx === "female" ? 6.8 : 7.0;
+    if (ag < 30) v += 0.2;
+    else if (ag >= 60) v -= 0.2;
+    return Math.max(3, Math.min(12, Number(v.toFixed(1))));
+  };
+  const br = calcBurn(saved.sex ?? "male", saved.age ?? 35);
+
+  // 3) A_g を lastTs から自然減衰して今に合わせる
+  const now = Date.now();
+  const last = Number(saved.lastTs ?? now);
+  const dt_h = Math.max(0, (now - last) / 3600000);
+  const Ag = Math.max(0, Number(saved.A_g ?? 0) - br * dt_h);
+
+  // 4) 各種stateを復元（タイムスタンプは今に更新）
+  setAg(Ag);
+  setLastTs(now);
+  setHistory(Array.isArray(saved.history) ? saved.history : []);
+  setWaterBonusSec(Number(saved.waterBonusSec ?? 0));
+  setLastAlcoholTs(Number(saved.lastAlcoholTs ?? 0));
+  setLastDrinkGrams(Number(saved.lastDrinkGrams ?? 0));
+}, []);
+
+useEffect(() => {
+  const toSave = {
+    version: 1,
+    A_g,
+    lastTs,
+    history,
+    waterBonusSec,
+    lastAlcoholTs,
+    lastDrinkGrams,
+    weightKg,
+    age,
+    sex,
+  };
+  saveState(toSave);
+}, [
+  A_g,
+  lastTs,
+  history,
+  waterBonusSec,
+  lastAlcoholTs,
+  lastDrinkGrams,
+  weightKg,
+  age,
+  sex,
+]);
+
 
 
   // ---------- 定数 ----------
@@ -312,6 +394,7 @@ const confirmPicker = () => {
     setLastAlcoholTs(0);
     setLastDrinkGrams(0);
     try {
+      localStorage.removeItem("nomel_v1"); // ← 追加：今回の一括保存キー
       localStorage.removeItem("alc_Ag");
       localStorage.removeItem("alc_lastTs");
       localStorage.removeItem("alc_hist");
@@ -493,29 +576,63 @@ const confirmPicker = () => {
           className="bg-white rounded-2xl p-4 shadow-sm grid gap-4"
           style={{ display: tab === "settings" ? "grid" : "none" }}
         >
+          {/* 上段：体重・年齢・性別 */}
           <div className="grid grid-cols-2 gap-3">
+            {/* 体重 */}
             <div>
               <div className="text-xs text-slate-500">体重 (kg)</div>
               <input
                 className="w-full mt-1 border rounded-xl px-3 h-11"
-                type="number"
-                min="30"
-                max="200"
-                value={weightKg}
-                onChange={(e) => setWeightKg(Number(e.target.value))}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="kg"
+                value={weightInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^\d*$/.test(v)) setWeightInput(v);
+                }}
+                onBlur={() => {
+                  if (weightInput === "") { setWeightInput(String(weightKg)); return; }
+                  const n = parseInt(weightInput, 10);
+                  if (Number.isFinite(n) && n >= 30 && n <= 200) {
+                    setWeightKg(n);
+                    setWeightInput(String(n));
+                  } else {
+                    setWeightInput(String(weightKg));
+                  }
+                }}
               />
             </div>
+
+            {/* 年齢 */}
             <div>
               <div className="text-xs text-slate-500">年齢</div>
               <input
                 className="w-full mt-1 border rounded-xl px-3 h-11"
-                type="number"
-                min="16"
-                max="99"
-                value={age}
-                onChange={(e) => setAge(Number(e.target.value))}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="歳"
+                value={ageInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^\d*$/.test(v)) setAgeInput(v);
+                }}
+                onBlur={() => {
+                  if (ageInput === "") { setAgeInput(String(age)); return; }
+                  const n = parseInt(ageInput, 10);
+                  if (Number.isFinite(n) && n >= 16 && n <= 99) {
+                    setAge(n);
+                    setAgeInput(String(n));
+                  } else {
+                    setAgeInput(String(age));
+                  }
+                }}
               />
             </div>
+
+            {/* 性別 */}
             <div className="col-span-2">
               <div className="text-xs text-slate-500 mb-1">性別</div>
               <div className="flex gap-2">
@@ -536,8 +653,9 @@ const confirmPicker = () => {
                 ))}
               </div>
             </div>
-          </div>
+          </div>{/* ← ここで grid-cols-2 を閉じる */}
 
+          {/* 下段：終了ボタン */}
           <div className="grid gap-2 mt-2">
             <button
               type="button"
@@ -551,6 +669,7 @@ const confirmPicker = () => {
             </div>
           </div>
         </section>
+
       </main>
 
       {/* === ゲート用オーバーレイ === */}
